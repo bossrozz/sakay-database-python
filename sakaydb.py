@@ -47,6 +47,23 @@ locs_dtypes = {
               'loc_name': str
               }
 
+# Loraine: Had to create a separate data type and date column references
+# since the current would not work when reading files
+dow_order = {'Monday': 0, 'Tuesday': 1, 'Wednesday': 2, 'Thursday': 3, 
+            'Friday': 4, 'Saturday': 5, 'Sunday': 6}
+
+trips_dates = ['pickup_datetime', 'dropoff_datetime']
+trips_dtypes_read = {
+                'trip_id': int,
+                'driver_id': int,
+                'passenger_count': int,
+                'pickup_loc_id': int,
+                'dropoff_loc_id': int,
+                'trip_distance': float,
+                'fare_amount': float
+               }
+
+
 def check_driver(driver):
         
         special_characters = '''!\"#$%&'()*+-/:;<=>?@[\]^_`{|}~'''
@@ -207,6 +224,26 @@ def del_trip(trip_id, f_dir):
     else:
         df_res.to_csv(f_dir, sep=sep, header=True, index=False)
         return True
+     
+    
+# Loraine: Added a function for reading the csv files.
+# Feel free to use this if needed
+def read_data(dataset, fname):
+    if dataset == 'trips':
+        return (pd.read_csv(fname, dtype=trips_dtypes_read,
+                 parse_dates=trips_dates,
+                 date_parser= lambda x: pd.to_datetime(x, format=dt_format)))
+    elif dataset == 'drivers':
+        return (pd.read_csv(fname, dtype=drivers_dtypes,
+                 date_parser= lambda x: pd.to_datetime(x, format=dt_format)))
+    elif dataset == 'locations':
+        return (pd.read_csv(fname, dtype=locs_dtypes,
+                 date_parser= lambda x: pd.to_datetime(x, format=dt_format)))
+    else:
+        raise SakayDBError("Request dataset not found. Choose among 'trips', \
+                           'drivers', or 'locations'")
+      
+      
         
 class SakayDBError(ValueError):
     
@@ -334,5 +371,74 @@ class SakayDB:
         if del_trip(trip_id, self.__trips_dir) == False:
             raise SakayDBError('Trip ID not found')
 
+  def generate_statistics(self, stat, df=None):
+        """
+        Return a dictionary depending on the `stat` parameter passed to it
 
+        Parameters
+        ----------
+        stat : str
+            Statistics to be generated. Can be details of the trip, passenger,
+            driver, or all of the above
+        df : pandas dataframe
+            Dataframe to be used for creating the statistics.
+            Uses the `trips` and `drivers` database by default.
+
+        Returns
+        -------
+        generate_statistics : dict
+            Dictionary containing the statistics requested based on `stat`
+            parameter
+        """
+        # if df is None, use default dfs, else use input param
+        if stat == 'trip':
+            if df is None:
+                df_trips = read_data('trips', self.__trips_dir)
+                if len(df_trips) == 0:
+                    return {}
+                else:
+                    dow = df_trips.pickup_datetime.dt.strftime('%A')
+                    return ((df_trips.groupby(dow).trip_id.nunique() /
+                             df_trips.groupby(dow).pickup_datetime
+                                 .apply(lambda x: x.dt.date.nunique()))
+                                 .sort_index(key=lambda x: x.map(dow_order))
+                                 .to_dict())
+
+            else:
+                dow = df.pickup_datetime.dt.strftime('%A')
+                return ((df.groupby(dow).trip_id.nunique() /
+                         df.groupby(dow).pickup_datetime
+                           .apply(lambda x: x.dt.date.nunique()))
+                           .sort_index(key=lambda x: x.map(dow_order))
+                           .to_dict())
+
+        elif stat == 'passenger':
+            df_trips = read_data('trips', self.__trips_dir)
+            if len(df_trips) == 0:
+                return {}
+            else:
+                return {k: self.generate_statistics('trip', v)
+                        for k, v in df_trips.groupby('passenger_count')}
+
+        elif stat == 'driver':
+            df_drivers = read_data('drivers', self.__drivers_dir)
+            df_trips = read_data('trips', self.__trips_dir)
+            if (len(df_drivers) == 0) | (len(df_trips) == 0):
+                return {}
+            else:
+                df_temp = (df_drivers.merge(df_trips[['driver_id', 'trip_id',
+                            'pickup_datetime']], how='left', on='driver_id'))
+                df_temp['driver_name'] = (df_temp[['last_name', 'given_name']]
+                                             .apply(lambda x: ', '.join(x),
+                                             axis=1))
+                return {k: self.generate_statistics('trip', v)
+                        for k, v in df_temp.groupby('driver_name')}
+
+        elif stat == 'all':
+            return {'trip': self.generate_statistics('trip'),
+                    'passenger': self.generate_statistics('passenger'),
+                    'driver': self.generate_statistics('driver')}
+
+        else:
+            raise SakayDBError('Input parameter is unknown.')
 
