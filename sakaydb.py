@@ -371,9 +371,9 @@ class SakayDB:
         if del_trip(trip_id, self.__trips_dir) == False:
             raise SakayDBError('Trip ID not found')
 
-  def generate_statistics(self, stat, df=None):
+    def generate_statistics(self, stat, df=None):
         """
-        Return a dictionary depending on the `stat` parameter passed to it
+        Return a dictionary depending on the input `stat` parameter
 
         Parameters
         ----------
@@ -390,7 +390,6 @@ class SakayDB:
             Dictionary containing the statistics requested based on `stat`
             parameter
         """
-        # if df is None, use default dfs, else use input param
         if stat == 'trip':
             if df is None:
                 df_trips = read_data('trips', self.__trips_dir)
@@ -403,7 +402,6 @@ class SakayDB:
                                  .apply(lambda x: x.dt.date.nunique()))
                                  .sort_index(key=lambda x: x.map(dow_order))
                                  .to_dict())
-
             else:
                 dow = df.pickup_datetime.dt.strftime('%A')
                 return ((df.groupby(dow).trip_id.nunique() /
@@ -411,7 +409,6 @@ class SakayDB:
                            .apply(lambda x: x.dt.date.nunique()))
                            .sort_index(key=lambda x: x.map(dow_order))
                            .to_dict())
-
         elif stat == 'passenger':
             df_trips = read_data('trips', self.__trips_dir)
             if len(df_trips) == 0:
@@ -419,11 +416,10 @@ class SakayDB:
             else:
                 return {k: self.generate_statistics('trip', v)
                         for k, v in df_trips.groupby('passenger_count')}
-
         elif stat == 'driver':
             df_drivers = read_data('drivers', self.__drivers_dir)
             df_trips = read_data('trips', self.__trips_dir)
-            if (len(df_drivers) == 0) | (len(df_trips) == 0):
+            if (len(df_drivers) == 0): # assuming that a driver may not have any trips yet
                 return {}
             else:
                 df_temp = (df_drivers.merge(df_trips[['driver_id', 'trip_id',
@@ -433,12 +429,76 @@ class SakayDB:
                                              axis=1))
                 return {k: self.generate_statistics('trip', v)
                         for k, v in df_temp.groupby('driver_name')}
-
         elif stat == 'all':
             return {'trip': self.generate_statistics('trip'),
                     'passenger': self.generate_statistics('passenger'),
                     'driver': self.generate_statistics('driver')}
-
         else:
             raise SakayDBError('Input parameter is unknown.')
 
+    def plot_statistics(self, stat):
+        """
+        Return a plot depending on the input `stat` parameter
+
+        Parameters
+        ----------
+        stat : str
+            Plot to be generated. Can be details of the trip, passenger,
+            or driver
+
+        Returns
+        -------
+        ax : matplotlib Axes
+        fig : matplotlib Figure
+        """
+        if stat == 'trip':
+            df = (pd.DataFrame.from_dict(self.generate_statistics(stat),
+                     orient='index', columns=['avg_trips'])
+                    .sort_index(key=lambda x: x.map(dow_order)))
+            if len(df) == 0:
+                print('{}')
+            else:
+                ax = df.plot.bar(y='avg_trips', color=aim_colors[0],
+                                 width=0.7, legend=False, rot=False,
+                                 xlabel='Day of week', ylabel='Ave Trips',
+                                 figsize=(12, 8), align='center',
+                                 title='Average trips per day')
+                plt.show()
+                return ax
+        elif stat == 'passenger':
+            df = (pd.DataFrame(self.generate_statistics(stat))
+                    .sort_index(key=lambda x: x.map(dow_order)))
+            if len(df) == 0:
+                print('{}')
+            else:
+                ax = df.plot(marker='o', markersize=7, figsize=(12, 8), lw=3,
+                             xlabel='Day of week', ylabel='Ave Trips',
+                             color=aim_colors)
+                plt.show()
+                return ax
+        elif stat == 'driver':
+            df = pd.DataFrame(self.generate_statistics(stat))
+            if len(df) == 0:
+                    print('{}')
+            else:
+                df = (df.apply(pd.Series.nlargest, axis=1, n=5).stack()
+                        .rename_axis(['dayofweek', 'driver_name'])
+                        .reset_index(name='avg_trips')
+                        .sort_values('dayofweek', key=lambda x:
+                                     x.map(dow_order))
+                        .reset_index(drop=True))
+
+                fig, ax = plt.subplots(7, 1, sharex=True, figsize=(8, 25))
+                for i, (r, d) in enumerate(df.groupby('dayofweek', sort=False)):
+                    d = d.sort_values(['avg_trips', 'driver_name'],
+                                      ascending=[True, False])
+                    (d.plot.barh(x='driver_name', y='avg_trips', ax=ax[i],
+                                 label=r, color=aim_colors[i], width=0.6,
+                                 align='center').set(ylabel=''))
+                    ax[i].legend(loc='lower right')
+
+                plt.xlabel('Ave Trips')
+                plt.show()
+                return fig
+        else:
+            raise SakayDBError('Input parameter is unknown.')
