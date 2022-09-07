@@ -763,8 +763,8 @@ class SakayDB:
                     except TypeError:
                         raise SakayDBError('Invalid values for range')
         df = df.sort_values(by=i)
-        df[pudt] = df['pickup_datetime'].dt.strftime(dt_format)
-        df[dodt] = df['dropoff_datetime'].dt.strftime(dt_format)
+        df['pickup_datetime'] = df['pickup_datetime'].dt.strftime(dt_format)
+        df['dropoff_datetime'] = df['dropoff_datetime'].dt.strftime(dt_format)
         return df
 
     def generate_statistics(self, stat, df=None):
@@ -936,6 +936,10 @@ class SakayDB:
         df_export.sort_values(by='trip_id', inplace=True)
         df_export.given_name = df_export.given_name.str.title()
         df_export.last_name = df_export.last_name.str.title()
+        df_export.pickup_datetime = (df_export.pickup_datetime
+                                     .astype('datetime64[ns]'))
+        df_export.dropoff_datetime = (df_export.dropoff_datetime
+                                      .astype('datetime64[ns]'))
         df_export['pickup_datetime'] = (df_export['pickup_datetime']
                                         .dt.strftime(dt_format))
         df_export['dropoff_datetime'] = (df_export['dropoff_datetime']
