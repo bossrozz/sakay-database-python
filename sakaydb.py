@@ -441,7 +441,7 @@ def del_trip(trip_id, f_dir):
 
 def read_data(dataset, fname):
     """
-    Read csv file based on input dataset and filename
+    Read a csv file based on input dataset and filename
 
     Parameters
     ----------
@@ -452,7 +452,7 @@ def read_data(dataset, fname):
 
     Returns
     -------
-    read_data : pandas DataFrame
+    pandas DataFrame
         Dataframe containing the data from the csv file
     """
     if dataset == 'trips':
@@ -467,8 +467,8 @@ def read_data(dataset, fname):
         return (pd.read_csv(fname, dtype=locs_dtypes,
                 date_parser=lambda x: pd.to_datetime(x, format=dt_format)))
     else:
-        raise SakayDBError("Request dataset not found. Choose among 'trips', \
-                           'drivers', or 'locations'")
+        raise SakayDBError("Requested dataset not found. Choose among \
+                           'trips', 'drivers', or 'locations'")
 
 
 class SakayDBError(ValueError):
@@ -769,7 +769,7 @@ class SakayDB:
 
     def generate_statistics(self, stat, df=None):
         """
-        Return a dictionary depending on the input `stat` parameter
+        Return statistics as a dictionary based on the input `stat` parameter
 
         Parameters
         ----------
@@ -782,9 +782,15 @@ class SakayDB:
 
         Returns
         -------
-        generate_statistics : dict
+        dict
             Dictionary containing the statistics requested based on `stat`
             parameter
+
+        Raises
+        -------
+        SakayDBError
+            If the input `stat` is not any of the 4 accepted parameters:
+            `trip`, `passenger`, `driver`, or `all`
         """
         # if df is None, use default dfs, else use input param
         if stat == 'trip':
@@ -794,15 +800,15 @@ class SakayDB:
                     return {}
                 else:
                     dow = df_trips.pickup_datetime.dt.strftime('%A')
-                    return ((df_trips.groupby(dow).trip_id.nunique()
-                            / df_trips.groupby(dow).pickup_datetime
+                    return ((df_trips.groupby(dow).trip_id.nunique() /
+                             df_trips.groupby(dow).pickup_datetime
                                      .apply(lambda x: x.dt.date.nunique()))
                             .sort_index(key=lambda x: x.map(dow_order))
                             .to_dict())
             else:
                 dow = df.pickup_datetime.dt.strftime('%A')
-                return ((df.groupby(dow).trip_id.nunique()
-                        / df.groupby(dow).pickup_datetime
+                return ((df.groupby(dow).trip_id.nunique() /
+                         df.groupby(dow).pickup_datetime
                            .apply(lambda x: x.dt.date.nunique()))
                         .sort_index(key=lambda x: x.map(dow_order))
                         .to_dict())
@@ -835,7 +841,7 @@ class SakayDB:
 
     def plot_statistics(self, stat):
         """
-        Return a plot depending on the input `stat` parameter
+        Return a plot of the statistics on the input `stat` parameter
 
         Parameters
         ----------
@@ -846,12 +852,27 @@ class SakayDB:
         Returns
         -------
         ax : matplotlib Axes
+            A bar plot of the average number of trips per day of week if the
+            input `stat` parameter is `trip`
+
+            A line plot of the average number of trips per day for each of
+            the different passenger counts if the input `stat` parameter is
+            `passenger`
+
         fig : matplotlib Figure
+            A horizontal bar plot of the average number of trips per day of
+            the top 5 drivers per day of week if the input `stat` parameter
+            is `driver`
+
+        Raises
+        -------
+        SakayDBError
+            If the input `stat` is not any of the 3 accepted parameters:
+            `trip`, `passenger`, or `driver`
         """
         if stat == 'trip':
             df = (pd.DataFrame.from_dict(self.generate_statistics(stat),
-                                         orient='index',
-                                         columns=['avg_trips'])
+                                         orient='index', columns=['avg_trips'])
                               .sort_index(key=lambda x: x.map(dow_order)))
             if len(df) == 0:
                 print('{}')
@@ -869,9 +890,8 @@ class SakayDB:
             if len(df) == 0:
                 print('{}')
             else:
-                ax = df.plot(marker='o', markersize=7, figsize=(12, 8),
-                             lw=3, xlabel='Day of week',
-                             ylabel='Ave Trips',
+                ax = df.plot(marker='o', markersize=7, figsize=(12, 8), lw=3,
+                             xlabel='Day of week', ylabel='Ave Trips',
                              color=aim_colors)
                 plt.show()
                 return ax
