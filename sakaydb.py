@@ -1061,4 +1061,5 @@ class SakayDB:
                             columns='pickup_loc_name',
                             aggfunc='mean',
                             fill_value=0)
+        df = df.astype(float)
         return df
