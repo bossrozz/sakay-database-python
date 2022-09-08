@@ -671,6 +671,9 @@ class SakayDB:
 
     def search_trips(self, **kwargs):
         """
+        Return filtered data from trips.csv as a pandas.DataFrame based on
+        the input keyword arguments.
+
         Parameters
         ----------
         **kwargs:
@@ -688,12 +691,21 @@ class SakayDB:
                 driver_id=(1, 5) : from 1 to 5, inclusive
                 driver_id=(None, 5) : All entries up to 5, inclusive
                 driver_id=(1, None) : All entries from 5, inclusive
+
         Returns
         -------
         df : pandas.DataFrame
-           Origin-Destination Matrix as a pandas.DataFrame containing
-           the average daily number of trips within the specified
-           date_range.
+           pandas.DataFrame containing filtered data from trips.csv
+
+        Raises
+        -------
+        SakayDBError
+            If invalid keyword arguments i.e. not in listed keyword arguments
+            above.
+
+            If invalid values for the keyword argument i.e. tuples with sizes
+            greater than 2, or either values is not an accepted dtype or
+            format.
         """
         df = read_data('trips', self.__trips_dir)
         col_list = df.columns.tolist()
@@ -800,15 +812,15 @@ class SakayDB:
                     return {}
                 else:
                     dow = df_trips.pickup_datetime.dt.strftime('%A')
-                    return ((df_trips.groupby(dow).trip_id.nunique() /
-                             df_trips.groupby(dow).pickup_datetime
+                    return ((df_trips.groupby(dow).trip_id.nunique()
+                             / df_trips.groupby(dow).pickup_datetime
                                      .apply(lambda x: x.dt.date.nunique()))
                             .sort_index(key=lambda x: x.map(dow_order))
                             .to_dict())
             else:
                 dow = df.pickup_datetime.dt.strftime('%A')
-                return ((df.groupby(dow).trip_id.nunique() /
-                         df.groupby(dow).pickup_datetime
+                return ((df.groupby(dow).trip_id.nunique()
+                         / df.groupby(dow).pickup_datetime
                            .apply(lambda x: x.dt.date.nunique()))
                         .sort_index(key=lambda x: x.map(dow_order))
                         .to_dict())
@@ -994,12 +1006,23 @@ class SakayDB:
                     date_range=(1, 5) : from 1 to 5, inclusive
                     date_range=(None, 5) : All entries up to 5, inclusive
                     date_range=(1, None) : All entries from 5, inclusive
+
         Returns
         -------
         df : pandas.DataFrame
            Origin-Destination Matrix as a pandas.DataFrame containing
            the average daily number of trips within the specified
            date_range.
+
+        Raises
+        -------
+        SakayDBError
+            If invalid keyword arguments i.e. not in listed keyword arguments
+            above.
+
+            If invalid values for the keyword argument i.e. tuples with sizes
+            greater than 2, or either values is not an accepted dtype or
+            format.
         """
         df_trips = read_data('trips', self.__trips_dir)
         df_loc = pd.read_csv('locations.csv')
